@@ -64,6 +64,9 @@ public class VideoPlayerView: UIView {
     /// Playback status changes, such as from play to pause.
     public var stateDidChanged: ((State) -> Void)?
     
+    /// Playback prograss time
+    public var prograssDidChanged: ((Float, Float) -> Void)?
+    
     /// Replay after playing to the end.
     public var replay: (() -> Void)?
     
@@ -171,9 +174,11 @@ public extension VideoPlayerView {
         self.player?.currentItem?.cancelPendingSeeks()
         self.player?.currentItem?.asset.cancelLoading()
         
-        let player = AVPlayer()
+//        let urlAsset = AVURLAsset(url: url)
+//        let player = AVPlayer(asset: urlAsset)
+        let player = AVPlayer(url: url)
         player.automaticallyWaitsToMinimizeStalling = false
-        
+        player.isMuted = self.isMuted
         let playerItem = AVPlayerItem(loader: url)
         playerItem.canUseNetworkResourcesForLiveStreamingWhilePaused = true
         
@@ -183,18 +188,46 @@ public extension VideoPlayerView {
         self.replayCount = 0
         self.isLoaded = false
         
-        if playerItem.isEnoughToPlay || url.isFileURL {
+        if player.currentItem?.isEnoughToPlay ?? false || url.isFileURL {
             state = .none
             isLoaded = true
             player.play()
+            
         } else {
+            print("lost 4 ")
             state = .loading
         }
         
+        
+        print("addPeriodicTimeObserver")
+        // watch video prograss every 0.04 sec
+        let interval = CMTime(seconds: 0.04,
+        preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        player.addPeriodicTimeObserver(forInterval: interval, queue: .main, using: { [weak self] (progressTime) in
+            
+            guard let _self = self else{
+                print("lost self 1")
+                return
+            }
+            
+            let seconds = CMTimeGetSeconds(progressTime)
+            
+            _self.player?.currentItem?.currentTime()
+            // Send new video prograss time
+            if let duration = _self.player?.currentItem?.duration {
+                let durationSeconds = CMTimeGetSeconds(duration)
+                _self.prograssDidChanged?(Float(seconds), Float(durationSeconds))
+            }else{
+                print("No duration")
+            }
+        })
+        print("inside GSPlayer : \(player.isMuted)")
+        //FIXME: creates a lag for some reason when scroll very fast
         player.replaceCurrentItem(with: playerItem)
+//        player.
         
         observe(player: player)
-        observe(playerItem: playerItem)
+        observe(playerItem: player.currentItem)
     }
     
     /// Pause video.
@@ -207,7 +240,7 @@ public extension VideoPlayerView {
     
     /// Continue playing video.
     func resume() {
-        pausedReason = .waitingKeepUp
+//        pausedReason = .waitingKeepUp
         player?.play()
     }
     
@@ -233,7 +266,7 @@ public extension VideoPlayerView {
     
 }
 
-private extension VideoPlayerView {
+extension VideoPlayerView {
     
     var player: AVPlayer? {
         get { return playerLayer.player }
@@ -254,6 +287,9 @@ private extension VideoPlayerView {
             name: .AVPlayerItemDidPlayToEndTime,
             object: nil
         )
+        
+ 
+        
         
         layer.addSublayer(playerLayer)
     }
