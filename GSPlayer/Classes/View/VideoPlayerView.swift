@@ -202,11 +202,16 @@ public extension VideoPlayerView {
         print("addPeriodicTimeObserver")
         // watch video prograss every 0.04 sec
         let interval = CMTime(seconds: 0.04,
-        preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-        player.addPeriodicTimeObserver(forInterval: interval, queue: .main, using: { [weak self] (progressTime) in
+                              preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        var timeObserver : Any!
+        timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main, using: { [weak self] (progressTime) in
             
             guard let _self = self else{
-                print("lost self 1")
+                print("lost self in GSPlayer 1")
+                // make sure player is paused and
+                player.pause()
+                player.replaceCurrentItem(with: nil)
+                player.removeTimeObserver(timeObserver! )
                 return
             }
             
